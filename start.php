@@ -114,6 +114,10 @@
 	</tr>
 	<tr>
 		<td colspan=2>
+		<div id="fetchBuyerInfo" style="display:none; margin:10px;">
+			<button onclick="fetchBuyerInformation()">Fetch Buyer Info</button>
+			<input type="checkbox" id="useConsentToken" /> Use Address Consent Token
+		</div>
 		<div id="status"></div>
 		<div id="address"></div>
 		</td>
@@ -124,7 +128,7 @@
 				<p>ORO: <input type="text" id="oro" disabled="disabled" name="oro"></p>
 				<p>Access Token (Address Consent Token): <input type="text" id="accessToken" disabled="disabled" name="accessToken"></p>
 				<p>Order Total:  $1.00</p>
-				<p>Decline Order? <input type="checkbox" name="declineOrder"></p>
+				<p>Decline Order? <input type="checkbox" name="declineOrder" id="declineOrder"></p>
 				<p><button onclick="confirmOrder()" id="confirmButton" style="font-size:18px; font-weight:bold; padding: 10px;">Confirm Order</button></p>
 		</td>
 
@@ -158,7 +162,8 @@
               console.log("contents dumped to console for oro " + currentOrderRefID);
               console.log("cur order ref = " + currentOrderRefID);
               renderWallet();
-		fetchFullShipAddress();
+		//fetchFullShipAddress();
+		enableFetchBuyerInfo();
 		refreshReadOnlyAddress('<?php echo $account->getSellerID(); ?>',currentOrderRefID);
             },
             onError: function(error) {
@@ -190,15 +195,20 @@
             }).bind("walletWidgetDiv");
 	}
 
-	function fetchFullShipAddress () {
-		$("#status").text("loading full address...");		
+	function enableFetchBuyerInfo() {
+		$("#fetchBuyerInfo").show();
+	}
+
+	function fetchBuyerInformation () {
+		$("#status").text("Retrieving buyer info...");		
 		var url = "fetchBuyerInformation.php";
 		$.ajax(url,{
 			cache: false,
 			data: {
 				orderRefId: currentOrderRefID,
 				publicKey: '<?= $key ?>',
-				token: $("#accessToken").val()
+				token: $("#accessToken").val(),
+				useToken: $( "#useConsentToken:checked" ).length
 			}
 		}).done(function (data) { 
 			console.log(data);
@@ -242,7 +252,7 @@
 				data: {
 					oroID: currentOrderRefID,
 					publicKey: '<?= $key ?>',
-					decline: $( "input:checked" ).length
+					decline: $( "#declineOrder:checked" ).length
 				}
 			}).done(function (data) {
 				$("#confirmButton").prop("disabled",true);

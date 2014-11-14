@@ -28,7 +28,7 @@
 	$orderRequest = new OffAmazonPaymentsService_Model_GetOrderReferenceDetailsRequest();
 	$orderRequest->setAmazonOrderReferenceId($orderId);
 	$orderRequest->setSellerId($merchantValues->getMerchantId());
-	if(isset($_REQUEST['token'])) {
+	if(isset($_REQUEST['token']) && $_REQUEST['useToken'] == 1) {
 		$orderRequest->setAddressConsentToken($_REQUEST['token']);
 	}
 

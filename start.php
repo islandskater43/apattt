@@ -52,6 +52,8 @@
 		td {padding:10px;}
 		th {padding:10px; text-align:left;}
 		h1,h2 {text-align:center;}
+		#readOnlyAddressBookWidgetDiv {width: 400px; height: 185px;}
+		#readOnlyWalletWidgetDiv {width: 400px; height: 185px;}
 	</style>
     </head>
     <body style="text-align:center;">
@@ -86,7 +88,10 @@
 		  });
 		</script>
 	</td>
-	<td align="right"><button onclick="amazon.Login.logout(); location.reload();" style="font-size:18px; font-weight:bold; padding: 10px;">Logout</button></td>
+	<td align="right">
+		<button onclick="verifyLoggedIn()" style="font-size:18px; font-weight:bold; padding: 10px;">Verify Logged In</button>
+		<button onclick="amazon.Login.logout(); location.reload();" style="font-size:18px; font-weight:bold; padding: 10px;">Logout</button>
+	</td>
 	</tr>
 
 	<tr>
@@ -127,9 +132,11 @@
 			<div class="confirm" style="display:none; text-align:center;">
 				<p>ORO: <input type="text" id="oro" disabled="disabled" name="oro"></p>
 				<p>Access Token (Address Consent Token): <input type="text" id="accessToken" disabled="disabled" name="accessToken"></p>
-				<p>Order Total:  $1.00</p>
+				<p>Order Total:  $<input type="text" name="orderTotal" id="orderTotal" value="10.00" size="6"></p>
 				<p>Decline Order? <input type="checkbox" name="declineOrder" id="declineOrder"></p>
+				<p>Decline path? <input type="text" name="declinePath" id="declinePath" value="false" READONLY></p>
 				<p><button onclick="confirmOrder()" id="confirmButton" style="font-size:18px; font-weight:bold; padding: 10px;">Confirm Order</button></p>
+				<p><a href="confirmOrder.phps" target="_blank">View Confirm Order Backend Source Code</a></p>
 		</td>
 
 	</tr>
@@ -167,7 +174,7 @@
 		refreshReadOnlyAddress('<?php echo $account->getSellerID(); ?>',currentOrderRefID);
             },
             onError: function(error) {
-              alert(error.getErrorCode() + ' - ' + error.getErrorMessage());
+              alert("Error on address book widget render: " + error.getErrorCode() + ' - ' + error.getErrorMessage());
             }
           }).bind("addressBookWidgetDiv");
 	}
@@ -181,6 +188,7 @@
                   height:'300px'
                 }
               },
+	      amazonOrderReferenceId: currentOrderRefID,
               onPaymentSelect: function(orderReference) {
                 console.log("payment method selected!");
 		$(".confirm").show();
@@ -190,7 +198,7 @@
               },
               
               onError: function(error) {
-		
+		alert("Error on wallet widget render: " + error.getErrorCode() + ' - ' + error.getErrorMessage());
               }
             }).bind("walletWidgetDiv");
 	}
@@ -227,7 +235,7 @@
 		    size: { width: '500px', height: '185px' }
 		},
 		onError: function (error) {
-		   alert(error.getErrorCode() & error.getErrorMessage());
+		   alert("Error during readonly address book render: " + error.getErrorCode() + error.getErrorMessage());
 		}
 	    }).bind("readOnlyAddressBookWidgetDiv");
 	}
@@ -240,9 +248,11 @@
 		displayMode: "Read",
 		design: {
 		    size: { width: '500px', height: '185px' }
+			/* designMode: 'responsive' */
 		},
 		onError: function (error) {
-		     alert(error.getErrorCode() & error.getErrorMessage());
+		     alert("Error during readonly wallet render: " + error.getErrorCode() + error.getErrorMessage());
+			console.dir(error);
 		}
 	    }).bind("readOnlyWalletWidgetDiv");
 	}
@@ -252,14 +262,62 @@
 				data: {
 					oroID: currentOrderRefID,
 					publicKey: '<?= $key ?>',
-					decline: $( "#declineOrder:checked" ).length
+					decline: $( "#declineOrder:checked" ).length,
+					orderTotal: $("#orderTotal").val(),
+					declinePath: $("#declinePath").val()
 				}
 			}).done(function (data) {
-				$("#confirmButton").prop("disabled",true);
-				$("#orderConf").html(data);
+
+				var result = JSON.parse(data);
+				console.dir(result);
+				//alert("Result = " + result.status);
+				//alert("Type   = " + result.type);
+
+				if(result.status == 'Declined') {
+					// the auth was declined - follow decline path
+					// re-render wallet widget (note that the order reference ID is bound to the wallet widget in this function
+					renderWallet();
+					$("#declinePath").val("true");
+					alert("The authorize call was not successful. Scroll up to see the Wallet Widget with decline information.");
+				} else {
+					$("#confirmButton").prop("disabled",true);
+					alert("The authorize call was successful!");
+
+				}
+
+				// construct confirmation msg
+				var msg = "Amazon returned " + result.status + " in response to the Authorize operation.";
+				if (typeof result.captureID != 'undefined' && result.captureID != "") {
+					msg += " Amazon Capture ID = " + result.captureID;
+				}
+
+				$("#orderConf").html( msg );
 				$("#orderConfContainer").show();
 			});
 
+	}
+
+	function verifyLoggedIn() {
+		var options =
+			{scope: "<?= $account->getScope() ?>", popup: true, interactive: 'never' };
+		console.log("verifyLoggedIn() - about to call login.authorize - " + new Date());
+
+		// check if we are logged in
+		authRequest = amazon.Login.authorize (options, function(response) {
+			// this code is executed ASYNCHRONOUSLY
+			
+			console.log("verifyLoggedIn() - authorize callback - " + new Date());
+			if ( response.error ) {
+				// USER NOT LOGGED IN
+				console.log("verifyLoggedIn() - SESSION NOT ACTIVE - " + new Date());
+				alert("Session NOT Active");
+			} else {
+				// USER IS LOGGED IN
+				console.log("verifyLoggedIn() - SESSION ACTIVE - " + new Date());
+				alert("Session IS Active");
+			}
+		});
+		console.log("verifyLoggedIn() - Finished call to login.authorize - " + new Date());
 	}
 
 	$(document).ajaxStart($.blockUI).ajaxStop($.unblockUI);

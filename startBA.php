@@ -65,7 +65,7 @@
 				font-size: 14px;	
 				line-height: 1.4; 
 			}
-			#wrapper{	
+			.wrapper{	
 				width: 960px;
 				margin: 20px auto;
 				padding-bottom: 50px;
@@ -135,6 +135,8 @@
 <script>
 	var globalAmazonBillingAgreementId = 'AAA';
 </script>
+      <script type="text/javascript" src="//code.jquery.com/jquery-1.11.1.min.js">
+      </script>
 
 		<!-- Client ID is from "Login with Amazon" page of Amazon Seller Central -->
 		<script type='text/javascript'>
@@ -152,7 +154,7 @@
 
 	</head>
 	<body>
-		<div id="wrapper">
+		<div class="wrapper">
 			<h1>Billing Agreement Generator - <?= $account->getSellerName() ?></h1><br>
 			<?php if($account->getIsSandbox()) { ?>
 			<h2 style="color:red;">Sandbox Mode</h2>
@@ -160,7 +162,7 @@
 			<p style="text-align:center;">Make sure <strong><?= $jsOriginURL ?></strong> is a white-listed JS Origin for this LwA Client.</p>
 			
 			<!-- === top row === -->
-			<div class="col1of2a">
+			<div class="col1of2">
 				<h3 class="red">Step 1: Click</h3>
 				<div class="buttonbox">
 					<div id="AmazonPayButton">&nbsp;</div> <!-- / button -->					
@@ -196,9 +198,10 @@
 	            	
 			</div><!-- / col1of2 top -->
 			
-			<div class="col2of2a">
+			<div class="col2of2"  style="text-align:right">
 				<h3 class="red">Step 2: Billing Agreement is displayed below</h3>
 				<div id="baBox">
+					
 					<h3>Billing Agreement ID:</h3>
 					<div id="ba"></div>					
 				</div>																	
@@ -324,6 +327,7 @@
 					   },
 					  onError: function(error) {
 					    // your error handling code
+						console.log(error.getErrorMessage());
 					   }
 					}).bind("consentWidgetDiv ");
 				}
@@ -331,6 +335,39 @@
 
 			</div><!-- / col2of2 bottom -->
 
+			<div style="clear:both;"></div>
 		</div> <!-- / wrapper -->
+		<div class="wrapper" style="clear:left;">
+			<h3>Advanced values:</h3>
+			Billing Agreement Amount: <input type="text" id="orderAmount" name="amount" /><br />
+			<p>Decline Order? <input type="checkbox" name="declineOrder" id="declineOrder"></p>
+			<p>Create ORO? <input type="checkbox" name="createORO" id="createORO"></p>
+		</div>
+		<div class="wrapper">
+			<input type="button" id="submitButton" value="Submit!" />
+		</div>
+
+
+	<script type="text/javascript">
+
+		
+		$("#submitButton").click(function () {
+			//alert('start submit');
+			$.ajax({
+				url: 'confirmOrderBA.php',
+				data: {
+					baID: $("#ba").text(),
+					publicKey: '<?= $key ?>',
+					decline: $( "#declineOrder:checked" ).length,
+					createORO: $( "#createORO:checked" ).length,
+					orderTotal: $("#orderAmount").val()
+				}
+			}).done(function (data,status,jqxhr) {
+				alert(data);
+			});
+		});
+
+	</script>
+
 	</body>	
 </html>

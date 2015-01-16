@@ -2,6 +2,9 @@
 
 	if(empty($_REQUEST['publicKey'])) die ("Key is required!");
 	if(empty($_REQUEST['oroID'])) die ("ORO ID is required!");
+	if(empty($_REQUEST['orderTotal'])) die("orderTotal is required!");
+
+	if(!is_numeric($_REQUEST['orderTotal'])) die("orderTotal must be a valid number!");
 
 	$key = $_REQUEST['publicKey'];
 	
@@ -9,6 +12,12 @@
 	$decline = false;
 	if(isset($_REQUEST['decline']) && $_REQUEST['decline'] == 1) {
 		$decline = true;
+	}
+
+	// set the decline path flag
+	$declinePath = false;
+	if(isset($_REQUEST['declinePath']) && $_REQUEST['declinePath'] == 'true') {
+		$declinePath = true;
 	}
 
 	// connect to DB (Optional)
@@ -30,21 +39,25 @@
 	// d
 	$oro = $_REQUEST['oroID'];
 
-	// Set Order Reference Details
+	if(!$declinePath) {
 
-	$setOrderReferenceDetailsRequest = new OffAmazonPaymentsService_Model_SetOrderReferenceDetailsRequest();
-        $setOrderReferenceDetailsRequest->setSellerId($merchantValues->getMerchantId());
-        $setOrderReferenceDetailsRequest->setAmazonOrderReferenceId($oro);
-        $setOrderReferenceDetailsRequest->setOrderReferenceAttributes(new OffAmazonPaymentsService_Model_OrderReferenceAttributes());
-        $setOrderReferenceDetailsRequest->getOrderReferenceAttributes()->setOrderTotal(new OffAmazonPaymentsService_Model_OrderTotal());
-        $setOrderReferenceDetailsRequest->getOrderReferenceAttributes()->getOrderTotal()->setCurrencyCode("USD");
-        $setOrderReferenceDetailsRequest->getOrderReferenceAttributes()->getOrderTotal()->setAmount("1.00");
-        $setOrderReferenceDetailsRequest->getOrderReferenceAttributes()->setSellerNote("This transaction kicks off additional compliance checks. Please reach out to your Amazon Payments Integration Manager for more information.");
+		// Set Order Reference Details
 
-	$setOrderResult = $client->setOrderReferenceDetails($setOrderReferenceDetailsRequest);
+		$setOrderReferenceDetailsRequest = new OffAmazonPaymentsService_Model_SetOrderReferenceDetailsRequest();
+		$setOrderReferenceDetailsRequest->setSellerId($merchantValues->getMerchantId());
+		$setOrderReferenceDetailsRequest->setAmazonOrderReferenceId($oro);
+		$setOrderReferenceDetailsRequest->setOrderReferenceAttributes(new OffAmazonPaymentsService_Model_OrderReferenceAttributes());
+		$setOrderReferenceDetailsRequest->getOrderReferenceAttributes()->setOrderTotal(new OffAmazonPaymentsService_Model_OrderTotal());
+		$setOrderReferenceDetailsRequest->getOrderReferenceAttributes()->getOrderTotal()->setCurrencyCode("USD");
+		$setOrderReferenceDetailsRequest->getOrderReferenceAttributes()->getOrderTotal()->setAmount($_REQUEST['orderTotal']);
+		$setOrderReferenceDetailsRequest->getOrderReferenceAttributes()->setSellerNote("This transaction kicks off additional compliance checks. Please reach out to your Amazon Payments Integration Manager for more information.");
 
-	debugOut("Set Order Reference Details Request",$setOrderReferenceDetailsRequest) ;
-	debugOut("Set Order Reference Details Response",$setOrderResult);
+		$setOrderResult = $client->setOrderReferenceDetails($setOrderReferenceDetailsRequest);
+
+		debugOut("Set Order Reference Details Request",$setOrderReferenceDetailsRequest) ;
+		debugOut("Set Order Reference Details Response",$setOrderResult);
+
+	}
 		
 	// Confirm Order
 
@@ -62,7 +75,7 @@
 	$authorizeRequest = new OffAmazonPaymentsService_Model_AuthorizeRequest();
 	$authorizeRequest->setSellerId($merchantValues->getMerchantId());
 	$authorizeRequest->setAmazonOrderReferenceId($oro);
-	$authorizeRequest->setAuthorizationReferenceId($oro."-Auth01");
+	$authorizeRequest->setAuthorizationReferenceId($oro."-Auth-" . substr(md5($oro . microtime() ),-4));
 	if($decline) {
 		// send in the special seller auth note to decline the order
 		$authorizeRequest->setSellerAuthorizationNote('{"SandboxSimulation": {"State":"Declined", "ReasonCode":"InvalidPaymentMethod", "PaymentMethodUpdateTimeInMins":100}}');
@@ -72,7 +85,7 @@
 
 	// expects a price object
 	$price = new OffAmazonPaymentsService_Model_Price();
-	$price->setAmount("1.00");
+	$price->setAmount($_REQUEST['orderTotal']);
 	$price->setCurrencyCode("USD");
 
 	$authorizeRequest->setAuthorizationAmount($price);
@@ -85,10 +98,25 @@
 	debugOut("Authorize Request",$authorizeRequest);
 	debugOut("Authorize Response",$authorizeResult);
 
+	$AuthorizationStatus = $authorizeResult->getAuthorizeResult()->getAuthorizationDetails()->getAuthorizationStatus()->getState();
 
-	print "Success!";
+	// returns OffAmazonPaymentsService_Model_IdList Object
+	$captureIDList = $authorizeResult->getAuthorizeResult()->getAuthorizationDetails()->getIdList();
+	debugOut("Authorize CaptureID List",$captureIDList);
+
+	// fetch id
+	$captureIDArray = $captureIDList->getmember();
+	$captureID = $captureIDArray[0];
+
+	debugOut("CaptureID",$captureID);
+
+	//print "Success!";
+
+	print '{ "status": "' . $AuthorizationStatus . '", "oroID": "' . $oro . '" , "captureID":"' . $captureID . '"}';
 
 	function debugOut($text,$var) {
+
+		error_log($text . ": " . print_r($var,true));
 		// if not in debug mode, exit
 		if(!isset($_REQUEST['debug'])) return;
 	
